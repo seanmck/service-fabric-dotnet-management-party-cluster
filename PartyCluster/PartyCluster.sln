@@ -1,0 +1,54 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.23107.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{A07B5EB6-E848-4116-A8D0-A826331D98C6}") = "PartyCluster", "PartyCluster\PartyCluster.sfproj", "{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClusterService", "ClusterService\ClusterService.csproj", "{9CF596CB-E0D2-493C-A6E9-42EBF481638F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebService", "WebService\WebService.csproj", "{08C5A75E-577D-4FDE-AB2E-EFCD30EED0E6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Domain", "Domain\Domain.csproj", "{AF0BB737-6977-4F24-824A-C5A92EB683A5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClusterService.UnitTests", "ClusterService.UnitTests\ClusterService.UnitTests.csproj", "{CD6A9520-AE54-4F7D-A860-D791B5E43DB5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mocks", "Mocks\Mocks.csproj", "{4F1E9BD9-172B-47D7-819C-26B43A1F0BFB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}.Debug|x64.ActiveCfg = Debug|x64
+		{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}.Debug|x64.Build.0 = Debug|x64
+		{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}.Debug|x64.Deploy.0 = Debug|x64
+		{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}.Release|x64.ActiveCfg = Release|x64
+		{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}.Release|x64.Build.0 = Release|x64
+		{80E45AEF-08D3-48DE-B9C3-694A6DF2E9C4}.Release|x64.Deploy.0 = Release|x64
+		{9CF596CB-E0D2-493C-A6E9-42EBF481638F}.Debug|x64.ActiveCfg = Debug|x64
+		{9CF596CB-E0D2-493C-A6E9-42EBF481638F}.Debug|x64.Build.0 = Debug|x64
+		{9CF596CB-E0D2-493C-A6E9-42EBF481638F}.Release|x64.ActiveCfg = Release|x64
+		{9CF596CB-E0D2-493C-A6E9-42EBF481638F}.Release|x64.Build.0 = Release|x64
+		{08C5A75E-577D-4FDE-AB2E-EFCD30EED0E6}.Debug|x64.ActiveCfg = Debug|x64
+		{08C5A75E-577D-4FDE-AB2E-EFCD30EED0E6}.Debug|x64.Build.0 = Debug|x64
+		{08C5A75E-577D-4FDE-AB2E-EFCD30EED0E6}.Release|x64.ActiveCfg = Release|x64
+		{08C5A75E-577D-4FDE-AB2E-EFCD30EED0E6}.Release|x64.Build.0 = Release|x64
+		{AF0BB737-6977-4F24-824A-C5A92EB683A5}.Debug|x64.ActiveCfg = Debug|x64
+		{AF0BB737-6977-4F24-824A-C5A92EB683A5}.Debug|x64.Build.0 = Debug|x64
+		{AF0BB737-6977-4F24-824A-C5A92EB683A5}.Release|x64.ActiveCfg = Release|x64
+		{AF0BB737-6977-4F24-824A-C5A92EB683A5}.Release|x64.Build.0 = Release|x64
+		{CD6A9520-AE54-4F7D-A860-D791B5E43DB5}.Debug|x64.ActiveCfg = Debug|x64
+		{CD6A9520-AE54-4F7D-A860-D791B5E43DB5}.Debug|x64.Build.0 = Debug|x64
+		{CD6A9520-AE54-4F7D-A860-D791B5E43DB5}.Release|x64.ActiveCfg = Release|x64
+		{CD6A9520-AE54-4F7D-A860-D791B5E43DB5}.Release|x64.Build.0 = Release|x64
+		{4F1E9BD9-172B-47D7-819C-26B43A1F0BFB}.Debug|x64.ActiveCfg = Debug|x64
+		{4F1E9BD9-172B-47D7-819C-26B43A1F0BFB}.Debug|x64.Build.0 = Debug|x64
+		{4F1E9BD9-172B-47D7-819C-26B43A1F0BFB}.Release|x64.ActiveCfg = Release|x64
+		{4F1E9BD9-172B-47D7-819C-26B43A1F0BFB}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
