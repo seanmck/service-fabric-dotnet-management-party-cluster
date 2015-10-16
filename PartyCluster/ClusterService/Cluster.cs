@@ -18,7 +18,7 @@ namespace ClusterService
             this.Address = String.Empty;
             this.Ports = new List<int>();
             this.Users = new List<ClusterUser>();
-            this.Uptime = TimeSpan.Zero;
+            this.CreatedOn = DateTimeOffset.MaxValue;
         }
 
         public ClusterStatus Status { get; set; }
@@ -33,6 +33,6 @@ namespace ClusterService
 
         public IList<ClusterUser> Users { get; set; }
 
-        public TimeSpan Uptime { get; set; }
+        public DateTimeOffset CreatedOn { get; set; }
     }
 }

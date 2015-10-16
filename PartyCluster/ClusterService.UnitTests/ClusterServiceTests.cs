@@ -13,7 +13,7 @@ namespace ClusterService.UnitTests
     using System.Linq;
     using Microsoft.ServiceFabric.Data;
     using System.Collections.Generic;
-
+    using Domain;
 
     [TestClass]
     public class ClusterServiceTests
@@ -169,8 +169,7 @@ namespace ClusterService.UnitTests
             Assert.AreEqual(config.MinimumClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Ready));
             Assert.AreEqual(deletingCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Deleting));
         }
-
-
+        
         /// <summary>
         /// UpdateClusterListAsync should not flag to remove clusters that still have users in them 
         /// when given a target count below the current count.
@@ -386,6 +385,194 @@ namespace ClusterService.UnitTests
             int actual = await target.GetTargetClusterCapacityAsync();
 
             Assert.AreEqual(expected, actual);
+        }
+
+        /// <summary>
+        /// A new cluster should initiate a create cluster operation and switch its status to "creating" if successful.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestProcessNewCluster()
+        {
+            bool calledActual = false;
+            string nameTemplate = "Test:{0}";
+            string nameActual = null;
+
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            MockClusterOperator clusterOperator = new MockClusterOperator()
+            {
+                CreateClusterAsyncFunc = name =>
+                {
+                    nameActual = name;
+                    calledActual = true;
+                    return Task.FromResult(String.Format(nameTemplate, name));
+                }
+            };
+
+            ClusterService target = new ClusterService(clusterOperator, stateManager);
+
+            Cluster cluster = new Cluster()
+            {
+                Status = ClusterStatus.New
+            };
+
+            await target.ProcessClusterStatusAsync(cluster);
+
+            Assert.IsTrue(calledActual);
+            Assert.AreEqual(ClusterStatus.Creating, cluster.Status);
+            Assert.AreEqual(String.Format(nameTemplate, nameActual), cluster.Address);
+        }
+        
+        /// <summary>
+        /// A creating cluster should set its status to ready and populate fields when the cluster creation has completed.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestProcessCreatingClusterSuccess()
+        {
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            MockClusterOperator clusterOperator = new MockClusterOperator()
+            {
+                GetClusterStatusAsyncFunc = name => Task.FromResult(ClusterOperationStatus.Ready)
+            };
+
+            ClusterService target = new ClusterService(clusterOperator, stateManager);
+            Cluster cluster = new Cluster()
+            {
+                Status = ClusterStatus.Creating
+            };
+
+            await target.ProcessClusterStatusAsync(cluster);
+            
+            Assert.AreEqual(ClusterStatus.Ready, cluster.Status);
+            Assert.IsTrue(cluster.CreatedOn.ToUniversalTime() <= DateTimeOffset.UtcNow);
+            cluster.Ports.SequenceEqual(await clusterOperator.GetClusterPortsAsync(""));
+        }
+
+        /// <summary>
+        /// A creating cluster should revert to "new" status if creation failed so that it can be retried.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestProcessCreatingClusterFailed()
+        {
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            MockClusterOperator clusterOperator = new MockClusterOperator()
+            {
+                GetClusterStatusAsyncFunc = name => Task.FromResult(ClusterOperationStatus.CreateFailed)
+            };
+
+            ClusterService target = new ClusterService(clusterOperator, stateManager);
+            Cluster cluster = new Cluster()
+            {
+                Status = ClusterStatus.Creating
+            };
+
+            await target.ProcessClusterStatusAsync(cluster);
+
+            Assert.AreEqual(ClusterStatus.New, cluster.Status);
+            Assert.AreEqual(0, cluster.Ports.Count());
+            Assert.AreEqual(0, cluster.Users.Count());
+        }
+
+        /// <summary>
+        /// A cluster marked for removal should initiate a delete cluster operation and switch its status to "deleting" if successful.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestProcessRemove()
+        {
+            bool calledActual = false;
+            string nameActual = null;
+
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            MockClusterOperator clusterOperator = new MockClusterOperator()
+            {
+                DeleteClusterAsyncFunc = name =>
+                {
+                    nameActual = name;
+                    calledActual = true;
+                    return Task.FromResult(true);
+                }
+            };
+
+            ClusterService target = new ClusterService(clusterOperator, stateManager);
+
+            Cluster cluster = new Cluster()
+            {
+                Status = ClusterStatus.Remove
+            };
+
+            await target.ProcessClusterStatusAsync(cluster);
+
+            Assert.IsTrue(calledActual);
+            Assert.AreEqual(ClusterStatus.Deleting, cluster.Status);
+        }
+
+        /// <summary>
+        /// When deleting is complete, set the status to deleted.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestProcessDeletingSuccessful()
+        {
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            MockClusterOperator clusterOperator = new MockClusterOperator()
+            {
+                GetClusterStatusAsyncFunc = domain => Task.FromResult(ClusterOperationStatus.ClusterNotFound)
+            };
+
+            ClusterService target = new ClusterService(clusterOperator, stateManager);
+
+            Cluster cluster = new Cluster()
+            {
+                Status = ClusterStatus.Deleting
+            };
+
+            await target.ProcessClusterStatusAsync(cluster);
+            
+            Assert.AreEqual(ClusterStatus.Deleted, cluster.Status);
+        }
+
+        /// <summary>
+        /// A cluster should be removed when its time limit has elapsed.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestProcessRemoveTimeLimit()
+        {
+            bool calledActual = false;
+
+            ClusterConfig config = new ClusterConfig()
+            {
+                MaxClusterUptime = TimeSpan.FromHours(2)
+            };
+             
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            MockClusterOperator clusterOperator = new MockClusterOperator()
+            {
+                DeleteClusterAsyncFunc = name =>
+                {
+                    calledActual = true;
+                    return Task.FromResult(true);
+                }
+            };
+
+            ClusterService target = new ClusterService(clusterOperator, stateManager)
+            {
+                Config = config
+            };
+
+            Cluster cluster = new Cluster()
+            {
+                Status = ClusterStatus.Ready,
+                CreatedOn = DateTimeOffset.UtcNow - config.MaxClusterUptime
+            };
+
+            await target.ProcessClusterStatusAsync(cluster);
+
+            Assert.IsTrue(calledActual);
+            Assert.AreEqual(ClusterStatus.Deleting, cluster.Status);
         }
 
         [TestMethod]

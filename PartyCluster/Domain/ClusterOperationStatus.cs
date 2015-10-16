@@ -30,6 +30,11 @@ namespace Domain
         /// <summary>
         /// A delete operation failed.
         /// </summary>
-        DeleteFailed
+        DeleteFailed,
+
+        /// <summary>
+        /// The cluster doesn't exist.
+        /// </summary>
+        ClusterNotFound
     }
 }

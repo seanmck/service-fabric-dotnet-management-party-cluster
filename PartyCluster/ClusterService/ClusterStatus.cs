@@ -15,6 +15,8 @@ namespace ClusterService
 
         Remove, 
 
-        Deleting
+        Deleting,
+
+        Deleted
     }
 }

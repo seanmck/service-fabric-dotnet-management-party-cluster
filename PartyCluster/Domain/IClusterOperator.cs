@@ -16,9 +16,9 @@ namespace Domain
         /// <remarks>
         /// If a cluster with the given domain could not be created, an exception should be thrown indicating the failure reason.
         /// </remarks>
-        /// <param name="domain"></param>
-        /// <returns></returns>
-        Task CreateClusterAsync(string domain);
+        /// <param name="name">A unique name for the cluster.</param>
+        /// <returns>The FQDN of the new cluster.</returns>
+        Task<string> CreateClusterAsync(string name);
 
         /// <summary>
         /// Initiates deletion of a cluster.

@@ -7,6 +7,7 @@ namespace ClusterService
 {
     using System;
     using System.Collections.Generic;
+    using System.Fabric;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -53,7 +54,7 @@ namespace ClusterService
                         AppCount = item.Value.AppCount,
                         Name = item.Key,
                         ServiceCount = item.Value.ServiceCount,
-                        Uptime = item.Value.Uptime,
+                        Uptime = DateTimeOffset.UtcNow - item.Value.CreatedOn.ToUniversalTime(),
                         UserCount = item.Value.Users.Count
                     });
         }
@@ -94,7 +95,7 @@ namespace ClusterService
                 }
 
                 // make sure the cluster isn't about to be deleted.
-                if (cluster.Uptime > this.Config.MaxClusterUptime - TimeSpan.FromMinutes(5))
+                if ((DateTimeOffset.UtcNow - cluster.CreatedOn.ToUniversalTime()) > (this.Config.MaxClusterUptime - TimeSpan.FromMinutes(5)))
                 {
                     throw new InvalidOperationException(); // need a better exception here
                 }
@@ -219,19 +220,95 @@ namespace ClusterService
         /// Processes a cluster based on its current state.
         /// </summary>
         /// <returns></returns>
-        internal Task ProcessClusterStatusAsync(Cluster cluster)
+        internal async Task ProcessClusterStatusAsync(Cluster cluster)
         {
-            // 2. Check status of each item in the dictionary
-            // state machine:
-            //
-            // new: Create cluster
-            // creating: Check status
-            // ready: Get ports, check uptime.
-            // deleting: Delete cluster
-            // removed: Check status
+            switch (cluster.Status)
+            {
+                case ClusterStatus.New:
+                    Random random = new Random();
+                    cluster.Address = await this.clusterOperator.CreateClusterAsync(random.Next().ToString());
+                    cluster.Status = ClusterStatus.Creating;
+                    break;
 
-            // 3. Update metadata fields of each item in the dictionary
-            throw new NotImplementedException();
+                case ClusterStatus.Creating:
+                    ClusterOperationStatus creatingStatus = await this.clusterOperator.GetClusterStatusAsync(cluster.Address);
+                    switch(creatingStatus)
+                    {
+                        case ClusterOperationStatus.Creating:
+                            // still creating
+                            break;
+                        case ClusterOperationStatus.Ready:
+                            cluster.Ports = await this.clusterOperator.GetClusterPortsAsync(cluster.Address);
+                            cluster.CreatedOn = DateTimeOffset.UtcNow;
+                            cluster.Status = ClusterStatus.Ready;
+                            break;
+                        case ClusterOperationStatus.CreateFailed:
+                            cluster.Status = ClusterStatus.New;
+                            break;
+                        case ClusterOperationStatus.Deleting:
+                            cluster.Status = ClusterStatus.Deleting;
+                            break;
+                    }
+                    break;
+
+                case ClusterStatus.Ready:
+                    if (DateTimeOffset.UtcNow - cluster.CreatedOn.ToUniversalTime() >= this.Config.MaxClusterUptime)
+                    {
+                        await this.clusterOperator.DeleteClusterAsync(cluster.Address);
+                        cluster.Status = ClusterStatus.Deleting;
+                    }
+
+                    ClusterOperationStatus readyStatus = await this.clusterOperator.GetClusterStatusAsync(cluster.Address);
+                    switch (readyStatus)
+                    {
+                        case ClusterOperationStatus.Deleting:
+                            cluster.Status = ClusterStatus.Deleting;
+                            break;
+                    }
+
+                    //TODO: update application and service count
+                    break;
+
+                case ClusterStatus.Remove:
+                    ClusterOperationStatus removeStatus = await this.clusterOperator.GetClusterStatusAsync(cluster.Address);
+                    switch (removeStatus)
+                    {
+                        case ClusterOperationStatus.Creating:
+                        case ClusterOperationStatus.Ready:
+                            await this.clusterOperator.DeleteClusterAsync(cluster.Address);
+                            cluster.Status = ClusterStatus.Deleting;
+                            break;
+                        case ClusterOperationStatus.Deleting:
+                            cluster.Status = ClusterStatus.Deleting;
+                            break;
+                        case ClusterOperationStatus.CreateFailed:
+                        case ClusterOperationStatus.DeleteFailed:
+                            // this means the cluster was marked for removal but it is a failed state. Do something!
+                            break;
+
+                    }
+                    break;
+
+                case ClusterStatus.Deleting:
+                    ClusterOperationStatus deleteStatus = await this.clusterOperator.GetClusterStatusAsync(cluster.Address);
+                    switch (deleteStatus)
+                    {
+                        case ClusterOperationStatus.Creating:
+                        case ClusterOperationStatus.Ready:
+                            await this.clusterOperator.DeleteClusterAsync(cluster.Address);
+                            break;
+                        case ClusterOperationStatus.Deleting:
+                            break; // still in progress
+                        case ClusterOperationStatus.ClusterNotFound:
+                            cluster.Status = ClusterStatus.Deleted;
+                            break;
+                        case ClusterOperationStatus.DeleteFailed:
+                            //TODO: set status back to Remove so it can be retried?
+                            break;
+                    }
+                    break;
+
+            }
         }
 
         private string ClusterName(int number)

@@ -14,38 +14,38 @@ namespace Mocks
     {
         public MockClusterOperator()
         {
-            this.CreateClusterAsyncFunc = domain => Task.FromResult(true);
+            this.CreateClusterAsyncFunc = name => Task.FromResult(name);
             this.DeleteClusterAsyncFunc = domain => Task.FromResult(true);
-            this.GetClusterPortsAsyncFunc = domain => Task.FromResult(new List<int>() {80, 8081, 405, 520});
+            this.GetClusterPortsAsyncFunc = domain => Task.FromResult(new[] {80, 8081, 405, 520} as IEnumerable<int>);
             this.GetClusterStatusAsyncFunc = domain => Task.FromResult(ClusterOperationStatus.Ready);
         }
 
-        public Func<string, Task> CreateClusterAsyncFunc { get; set; }
+        public Func<string, Task<string>> CreateClusterAsyncFunc { get; set; }
 
         public Func<string, Task> DeleteClusterAsyncFunc { get; set; }
 
-        public Func<string, Task> GetClusterPortsAsyncFunc { get; set; }
+        public Func<string, Task<IEnumerable<int>>> GetClusterPortsAsyncFunc { get; set; }
 
-        public Func<string, Task> GetClusterStatusAsyncFunc { get; set; }
+        public Func<string, Task<ClusterOperationStatus>> GetClusterStatusAsyncFunc { get; set; }
 
-        public Task CreateClusterAsync(string domain)
+        public Task<string> CreateClusterAsync(string name)
         {
-            throw new NotImplementedException();
+            return this.CreateClusterAsyncFunc(name);
         }
 
         public Task DeleteClusterAsync(string domain)
         {
-            throw new NotImplementedException();
+            return this.DeleteClusterAsyncFunc(domain);
         }
 
         public Task<IEnumerable<int>> GetClusterPortsAsync(string domain)
         {
-            throw new NotImplementedException();
+            return this.GetClusterPortsAsyncFunc(domain);
         }
 
         public Task<ClusterOperationStatus> GetClusterStatusAsync(string domain)
         {
-            throw new NotImplementedException();
+            return this.GetClusterStatusAsyncFunc(domain);
         }
     }
 }
