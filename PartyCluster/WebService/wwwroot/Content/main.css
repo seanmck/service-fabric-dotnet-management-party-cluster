@@ -1,6 +1,6 @@
 ﻿body {
     background: #fbfbfb;
-    color: #333;
+    color: #555;
     font: 1.4em/1.5 wf_segoe-ui_light,"Segoe UI Light","Segoe WP Light","Segoe UI","Segoe WP",Tahoma,Arial,sans-serif;
     min-width: 1000px;
 }
@@ -26,6 +26,58 @@
     min-width: 1000px;
     width: 1000px;
 }
+.button
+{
+    display: inline-block;
+    background:#89c402;
+    border: 0 none;
+    box-sizing: border-box;
+    color: #fff;
+    padding: 4px 15px;
+    position: relative;
+    text-align: center;
+    vertical-align: bottom;
+    text-decoration:none;
+}
+.button.partynow{
+    background:#89c402 url('balloons-icon.png') center right no-repeat;
+    font-size: 24px;
+    line-height: 33px;
+    padding: 6px 55px 9px 20px;
+    margin:30px 0 0;
+}
+
+.button.download
+{
+    background:#999;
+    font-size: 24px;
+    line-height: 33px;
+    padding: 6px 55px 9px 20px;
+    margin:30px 0 0 20px;
+
+}
+.button.download::after{
+    background: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAbCAYAAAB1NA+iAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAYdEVYdFNvZnR3YXJlAHBhaW50Lm5ldCA0LjAuM4zml1AAAABRSURBVDhPY/j//78AEDcAsQEDuQCoOQGI348aggCjhmCCUUMwAVAzKPOBDFGAChEPQDZDNc+HChEPRjWTCEY1kwgo1QyqmdYDcT9UiATAwAAA8wwclpvxEbIAAAAASUVORK5CYII=") no-repeat;
+    content: "";
+    display: inline-block;
+    height: 28px;
+    margin-top: -14px;
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    width: 16px;
+}
+.button:hover
+{
+    background-color:#A5CE00;
+    text-decoration:none;
+}
+
+.button.download:hover
+{
+    background-color:#BBB;
+    text-decoration:none;
+}
 h2.azure-heading
 {
     font-size: 36px;
@@ -39,30 +91,29 @@ h1.party-heading
     font-size: 64px;
     font-weight: 400;
     color: #FF8A00;
-    margin:0 0 25px 0;
+    margin:0 0 20px 0;
 
 }
 h3.party-subheading
 {
     font-size: 24px;
     font-weight: 400;
-    color: #A5CE00;
+    color: #89c402;
     margin:0;
 }
 header
 {
     background: #303030;
-    height:250px;
 }
 
 header .header-content
 {
     background: url('partycluster-background.png') center right no-repeat;
-    height:250px;
+    height:300px;
 }
 section#main
 {
-    margin-top:20px;
+    margin: 20px auto;
 }
 .cluster-list
 {
@@ -72,13 +123,14 @@ section#main
 .cluster-list table
 {
     width:550px;
+    margin:20px 0 0 0;
 }
 .cluster-list table td{
     padding:10px;
 }
     .cluster-list table thead {
-        background: #00ABEC;
-        color:#FFF;
+        background: #CCC;
+        color:#000;
     }
 .cluster-list tr:nth-child(even) {
     background-color: #EEE;
@@ -98,4 +150,9 @@ section#main
 .faq ul
 {
     list-style: none;
+}
+footer
+{
+    background:#1A1A1A;
+    height: 100px;
 }
