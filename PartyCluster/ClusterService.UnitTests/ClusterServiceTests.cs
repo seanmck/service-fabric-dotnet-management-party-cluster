@@ -250,6 +250,14 @@ namespace ClusterService.UnitTests
                     });
                 }
 
+                for (int i = 0; i < 5; ++i)
+                {
+                    await dictionary.AddAsync(tx, random.Next(), new Cluster()
+                    {
+                        Status = ClusterStatus.Deleting
+                    });
+                }
+
                 await tx.CommitAsync();
             }
 
@@ -322,6 +330,14 @@ namespace ClusterService.UnitTests
                     await dictionary.AddAsync(tx, random.Next(), new Cluster()
                     {
                         Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), (int)Math.Floor((double)config.MaximumUsersPerCluster * config.UserCapacityLowPercentThreshold)))
+                    });
+                }
+
+                for (int i = 0; i < 5; ++i)
+                {
+                    await dictionary.AddAsync(tx, random.Next(), new Cluster()
+                    {
+                        Status = ClusterStatus.Deleting
                     });
                 }
 
