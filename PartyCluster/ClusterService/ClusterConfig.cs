@@ -13,9 +13,12 @@ namespace ClusterService
         {
             this.RefreshInterval = TimeSpan.FromSeconds(1);
             this.MinimumClusterCount = 10;
-            this.MinimumClusterCount = 100;
-            this.MaximumUsersPerCluster = 20;
+            this.MaximumClusterCount = 100;
+            this.MaximumUsersPerCluster = 10;
             this.MaxClusterUptime = TimeSpan.FromHours(2);
+            this.UserCapacityHighPercentThreshold = 0.75;
+            this.UserCapacityLowPercentThreshold = 0.25;
+            this.CapacityThresholdIncrement = 10;
         }
 
         public TimeSpan RefreshInterval { get; set; }
@@ -27,5 +30,11 @@ namespace ClusterService
         public int MaximumUsersPerCluster { get; set; }
 
         public TimeSpan MaxClusterUptime { get; set; }
+
+        public double UserCapacityHighPercentThreshold { get; set; }
+
+        public double UserCapacityLowPercentThreshold { get; set; }
+
+        public double CapacityThresholdIncrement { get; set; }
     }
 }

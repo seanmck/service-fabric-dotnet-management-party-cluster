@@ -109,7 +109,7 @@ namespace Mocks
             IReliableState item;
             bool result = this.store.TryGetValue(this.ToUri(name), out item);
 
-            return Task.FromResult((ConditionalResult<T>) Activator.CreateInstance(typeof(ConditionalResult<T>), result, item));
+            return Task.FromResult(ConditionalResultActivator.Create<T>(result, (T)item));
         }
 
         public Task<ConditionalResult<T>> TryGetAsync<T>(Uri name) where T : IReliableState
@@ -117,7 +117,7 @@ namespace Mocks
             IReliableState item;
             bool result = this.store.TryGetValue(name, out item);
 
-            return Task.FromResult((ConditionalResult<T>) Activator.CreateInstance(typeof(ConditionalResult<T>), result, item));
+            return Task.FromResult(ConditionalResultActivator.Create<T>(result, (T)item));
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()

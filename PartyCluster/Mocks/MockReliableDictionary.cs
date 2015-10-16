@@ -22,14 +22,21 @@ namespace Mocks
 
         public Task AddAsync(ITransaction tx, TKey key, TValue value)
         {
-            this.dictionary.TryAdd(key, value);
+            if (!this.dictionary.TryAdd(key, value))
+            {
+                throw new InvalidOperationException("key already exists: " + key.ToString());
+            }
+            
 
             return Task.FromResult(true);
         }
 
         public Task AddAsync(ITransaction tx, TKey key, TValue value, TimeSpan timeout, CancellationToken cancellationToken)
         {
-            this.dictionary.TryAdd(key, value);
+            if (!this.dictionary.TryAdd(key, value))
+            {
+                throw new InvalidOperationException("key already exists: " + key.ToString());
+            }
 
             return Task.FromResult(true);
         }
@@ -96,7 +103,7 @@ namespace Mocks
             TValue value;
             bool result = this.dictionary.TryGetValue(key, out value);
 
-            return Task.FromResult((ConditionalResult<TValue>) Activator.CreateInstance(typeof(ConditionalResult<TValue>), result, value));
+            return Task.FromResult(ConditionalResultActivator.Create<TValue>(result, value));
         }
 
         public Task<ConditionalResult<TValue>> TryGetValueAsync(ITransaction tx, TKey key, LockMode lockMode)
@@ -104,7 +111,7 @@ namespace Mocks
             TValue value;
             bool result = this.dictionary.TryGetValue(key, out value);
 
-            return Task.FromResult((ConditionalResult<TValue>) Activator.CreateInstance(typeof(ConditionalResult<TValue>), result, value));
+            return Task.FromResult(ConditionalResultActivator.Create<TValue>(result, value));
         }
 
         public Task<ConditionalResult<TValue>> TryGetValueAsync(ITransaction tx, TKey key, TimeSpan timeout, CancellationToken cancellationToken)
@@ -112,7 +119,7 @@ namespace Mocks
             TValue value;
             bool result = this.dictionary.TryGetValue(key, out value);
 
-            return Task.FromResult((ConditionalResult<TValue>) Activator.CreateInstance(typeof(ConditionalResult<TValue>), result, value));
+            return Task.FromResult(ConditionalResultActivator.Create<TValue>(result, value));
         }
 
         public Task<ConditionalResult<TValue>> TryGetValueAsync(
@@ -121,7 +128,7 @@ namespace Mocks
             TValue value;
             bool result = this.dictionary.TryGetValue(key, out value);
 
-            return Task.FromResult((ConditionalResult<TValue>) Activator.CreateInstance(typeof(ConditionalResult<TValue>), result, value));
+            return Task.FromResult(ConditionalResultActivator.Create<TValue>(result, value));
         }
 
         public Task SetAsync(ITransaction tx, TKey key, TValue value)
@@ -216,7 +223,7 @@ namespace Mocks
 
         public Task<long> GetCountAsync()
         {
-            throw new NotImplementedException();
+            return Task.FromResult((long)this.dictionary.Count);
         }
     }
 }

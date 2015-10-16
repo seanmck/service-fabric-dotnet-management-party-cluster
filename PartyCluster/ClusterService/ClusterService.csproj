@@ -65,7 +65,6 @@
   <ItemGroup>
     <Compile Include="Cluster.cs" />
     <Compile Include="ClusterConfig.cs" />
-    <Compile Include="ClusterManagementPipeline.cs" />
     <Compile Include="ClusterStatus.cs" />
     <Compile Include="ClusterUser.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

@@ -8,16 +8,25 @@ namespace ClusterService
     using System;
     using System.Collections.Generic;
 
-    internal struct Cluster
+    internal class Cluster
     {
+        public Cluster()
+        {
+            this.Status = ClusterStatus.New;
+            this.AppCount = 0;
+            this.ServiceCount = 0;
+            this.Address = String.Empty;
+            this.Ports = new List<int>();
+            this.Users = new List<ClusterUser>();
+            this.Uptime = TimeSpan.Zero;
+        }
+
         public ClusterStatus Status { get; set; }
 
         public int AppCount { get; set; }
 
         public int ServiceCount { get; set; }
-
-        public string Name { get; set; }
-
+        
         public string Address { get; set; }
 
         public IEnumerable<int> Ports { get; set; }
