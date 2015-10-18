@@ -44,19 +44,19 @@ namespace ClusterService
 
         public async Task<IEnumerable<ClusterView>> GetClusterList()
         {
-            IReliableDictionary<string, Cluster> clusterDictionary =
-                await this.reliableStateManager.GetOrAddAsync<IReliableDictionary<string, Cluster>>(ClusterDictionaryName);
+            IReliableDictionary<int, Cluster> clusterDictionary =
+                await this.reliableStateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterDictionaryName);
 
-            return clusterDictionary.CreateEnumerable(EnumerationMode.Ordered).Select(
-                item =>
-                    new ClusterView()
-                    {
-                        AppCount = item.Value.AppCount,
-                        Name = item.Key,
-                        ServiceCount = item.Value.ServiceCount,
-                        Uptime = DateTimeOffset.UtcNow - item.Value.CreatedOn.ToUniversalTime(),
-                        UserCount = item.Value.Users.Count
-                    });
+            return from cluster in clusterDictionary.CreateEnumerable(EnumerationMode.Ordered)
+                   where cluster.Value.Status == ClusterStatus.Ready
+                   select new ClusterView()
+                   {
+                       AppCount = cluster.Value.AppCount,
+                       Name = "Party Cluster " + cluster.Key,
+                       ServiceCount = cluster.Value.ServiceCount,
+                       Uptime = DateTimeOffset.UtcNow - cluster.Value.CreatedOn.ToUniversalTime(),
+                       UserCount = cluster.Value.Users.Count
+                   };
         }
 
         public async Task JoinClusterAsync(string username, string clusterName)
@@ -103,7 +103,7 @@ namespace ClusterService
                 userPort = cluster.Ports.First(port => !cluster.Users.Select(x => x.Port).Contains(port));
                 clusterAddress = cluster.Address;
 
-                cluster.Users.Add(new ClusterUser() {Name = username, Port = userPort});
+                cluster.Users.Add(new ClusterUser() { Name = username, Port = userPort });
 
                 await clusterDictionary.SetAsync(tx, clusterName, cluster);
 
@@ -124,7 +124,7 @@ namespace ClusterService
 
             IReliableDictionary<int, Cluster> clusterDictionary =
                 await this.reliableStateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterDictionaryName);
-            
+
             using (ITransaction tx = this.reliableStateManager.CreateTransaction())
             {
                 var activeClusters = clusterDictionary
@@ -151,7 +151,7 @@ namespace ClusterService
         {
             IReliableDictionary<int, Cluster> clusterDictionary =
                 await this.reliableStateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterDictionaryName);
-            
+
             using (ITransaction tx = this.reliableStateManager.CreateTransaction())
             {
                 var activeClusters = clusterDictionary
@@ -232,7 +232,7 @@ namespace ClusterService
 
                 case ClusterStatus.Creating:
                     ClusterOperationStatus creatingStatus = await this.clusterOperator.GetClusterStatusAsync(cluster.Address);
-                    switch(creatingStatus)
+                    switch (creatingStatus)
                     {
                         case ClusterOperationStatus.Creating:
                             // still creating

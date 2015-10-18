@@ -6,6 +6,7 @@
 namespace Mocks
 {
     using System;
+    using System.Linq;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Threading;
@@ -162,7 +163,12 @@ namespace Mocks
 
         public IEnumerable<KeyValuePair<TKey, TValue>> CreateEnumerable(EnumerationMode enumerationMode)
         {
-            throw new NotImplementedException();
+            if (enumerationMode == EnumerationMode.Ordered)
+            {
+                return this.OrderBy(x => x.Key);
+            }
+
+            return this;
         }
 
         public IEnumerable<KeyValuePair<TKey, TValue>> CreateEnumerable(Func<TKey, bool> filter, EnumerationMode enumerationMode)
