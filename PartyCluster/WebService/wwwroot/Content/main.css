@@ -1,7 +1,9 @@
 ﻿body {
+    margin:0;
+    padding:0;
     background: #fbfbfb;
     color: #555;
-    font: 1.4em/1.5 wf_segoe-ui_light,"Segoe UI Light","Segoe WP Light","Segoe UI","Segoe WP",Tahoma,Arial,sans-serif;
+    font:14px/1.2 "Segoe UI Light","Segoe WP Light","Segoe UI","Segoe WP",Tahoma,Arial,sans-serif;
     min-width: 1000px;
 }
 .clearfix::before, .clearfix::after {
@@ -44,7 +46,7 @@
     font-size: 24px;
     line-height: 33px;
     padding: 6px 55px 9px 20px;
-    margin:30px 0 0;
+    margin:20px 0 0;
 }
 
 .button.download
@@ -53,7 +55,7 @@
     font-size: 24px;
     line-height: 33px;
     padding: 6px 55px 9px 20px;
-    margin:30px 0 0 20px;
+    margin:20px 0 0 20px;
 
 }
 .button.download::after{
@@ -81,7 +83,7 @@
 h2.azure-heading
 {
     font-size: 36px;
-    font-weight: 400;
+    font-weight: 200;
     color:#FFF;
     margin:40px 0 0 0;
 }
@@ -89,7 +91,7 @@ h2.azure-heading
 h1.party-heading
 {
     font-size: 64px;
-    font-weight: 400;
+    font-weight: 200;
     color: #FF8A00;
     margin:0 0 20px 0;
 
@@ -97,9 +99,12 @@ h1.party-heading
 h3.party-subheading
 {
     font-size: 24px;
-    font-weight: 400;
+    font-weight: 200;
     color: #89c402;
     margin:0;
+}
+h4 {
+    margin:5px 0;
 }
 header
 {
@@ -117,7 +122,7 @@ section#main
 }
 .cluster-list
 {
-    width:600px;
+    width:595px;
     float:left;
 }
 .cluster-list table
@@ -138,13 +143,13 @@ section#main
 .faq
 {
     border-left: 1px solid #ccc;
-    width:400px;
+    width:395px;
     float:right;
 }
 .faq h4
 {
     color:#00ABEC;
-    font-weight:500;
+    font-weight:200;
     font-size:24px;
 }
 .faq ul

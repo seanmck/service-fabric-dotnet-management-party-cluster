@@ -116,8 +116,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="wwwroot\Content\main.css" />
-    <Content Include="wwwroot\Content\partycluster-background.png" />
-    <Content Include="wwwroot\Content\partycluster.png" />
+    <Content Include="wwwroot\Content\partycluster-background.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="wwwroot\Content\partycluster.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="wwwroot\index.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
