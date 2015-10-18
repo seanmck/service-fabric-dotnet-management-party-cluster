@@ -114,11 +114,11 @@ namespace ClusterService
         }
 
         /// <summary>
-        /// Adds clusters by the given amount without going over the max threshold.
+        /// Adds clusters by the given amount without going over the max threshold and without resulting in below the min threshold.
         /// </summary>
         /// <param name="targetCount"></param>
         /// <returns></returns>
-        internal async Task IncreaseClustersBy(int amount)
+        internal async Task BalanceClustersAsync(int target)
         {
             Random random = new Random();
 
@@ -127,48 +127,73 @@ namespace ClusterService
 
             using (ITransaction tx = this.reliableStateManager.CreateTransaction())
             {
-                var activeClusters = clusterDictionary
-                    .Where(x =>
-                        x.Value.Status != ClusterStatus.Deleting &&
-                        x.Value.Status != ClusterStatus.Remove);
+                var activeClusters = this.GetActiveClusters(clusterDictionary);
+                int activeClusterCount = activeClusters.Count();
 
-                int limit = Math.Min(amount, this.Config.MaximumClusterCount - activeClusters.Count());
-                for (int i = 0; i < limit; ++i)
+                if (target < this.Config.MinimumClusterCount)
                 {
-                    await clusterDictionary.AddAsync(tx, random.Next(), new Cluster());
+                    target = this.Config.MinimumClusterCount;
+                }
+                
+                if (target > this.Config.MaximumClusterCount)
+                {
+                    target = this.Config.MaximumClusterCount;
                 }
 
-                await tx.CommitAsync();
+                if (activeClusterCount < target)
+                {
+                    int limit = Math.Min(target, this.Config.MaximumClusterCount);
+
+                    for (int i = 0; i < limit - activeClusterCount; ++i)
+                    {
+                        await clusterDictionary.AddAsync(tx, random.Next(), new Cluster());
+                    }
+
+                    await tx.CommitAsync();
+                }
+
+                if (activeClusterCount > target)
+                {
+                    var removeList = activeClusters
+                        .Where(x => x.Value.Users.Count == 0)
+                        .Take(Math.Min(activeClusterCount - this.Config.MinimumClusterCount, activeClusterCount - target));
+
+                    foreach (var item in removeList)
+                    {
+                        Cluster value = item.Value;
+                        value.Status = ClusterStatus.Remove;
+
+                        await clusterDictionary.SetAsync(tx, item.Key, value);
+                    }
+
+                    await tx.CommitAsync();
+                }
             }
         }
-
+        
         /// <summary>
-        /// Decreases the number of active, empty clusters by the given amount without going below the min cluster threshold.
+        /// Removes clusters that have been deleted from the list.
         /// </summary>
-        /// <param name="amount"></param>
         /// <returns></returns>
-        internal async Task DecreaseClustersBy(int amount)
+        internal async Task ProcessClusters()
         {
             IReliableDictionary<int, Cluster> clusterDictionary =
                 await this.reliableStateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterDictionaryName);
 
             using (ITransaction tx = this.reliableStateManager.CreateTransaction())
             {
-                var activeClusters = clusterDictionary
-                    .Where(x =>
-                        x.Value.Status != ClusterStatus.Deleting &&
-                        x.Value.Status != ClusterStatus.Remove);
-
-                var removeList = activeClusters
-                    .Where(x => x.Value.Users.Count == 0)
-                    .Take(Math.Min(activeClusters.Count() - this.Config.MinimumClusterCount, amount));
-
-                foreach (var item in removeList)
+                foreach (var cluster in clusterDictionary)
                 {
-                    Cluster value = item.Value;
-                    value.Status = ClusterStatus.Remove;
+                    await this.ProcessClusterStatusAsync(cluster.Value);
 
-                    await clusterDictionary.SetAsync(tx, item.Key, value);
+                    if (cluster.Value.Status == ClusterStatus.Deleted)
+                    {
+                        await clusterDictionary.TryRemoveAsync(tx, cluster.Key);
+                    }
+                    else
+                    {
+                        await clusterDictionary.SetAsync(tx, cluster.Key, cluster.Value);
+                    }
                 }
 
                 await tx.CommitAsync();
@@ -176,7 +201,7 @@ namespace ClusterService
         }
 
         /// <summary>
-        /// Determines how many clusters there should be based on user activity.
+        /// Determines how many clusters there should be based on user activity and min/max thresholds.
         /// </summary>
         /// <remarks>
         /// When the user count goes below the low percent threshold, decrease capacity by (high - low)%
@@ -185,16 +210,15 @@ namespace ClusterService
         /// <returns></returns>
         internal async Task<int> GetTargetClusterCapacityAsync()
         {
-            // 1.a. check number users to see if we need to create more clusters or delete unused clusters.
             IReliableDictionary<int, Cluster> clusterDictionary =
                 await this.reliableStateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterDictionaryName);
 
-            int activeClusters = clusterDictionary
-                    .Count(x => x.Value.Status != ClusterStatus.Deleting && x.Value.Status != ClusterStatus.Remove);
+            var activeClusters = this.GetActiveClusters(clusterDictionary);
+            int activeClusterCount = activeClusters.Count();
 
-            double totalCapacity = activeClusters * this.Config.MaximumUsersPerCluster;
+            double totalCapacity = activeClusterCount * this.Config.MaximumUsersPerCluster;
 
-            double totalUsers = clusterDictionary
+            double totalUsers = activeClusters
                     .Aggregate(0, (total, next) => total += next.Value.Users.Count);
 
             double percentFull = totalUsers / totalCapacity;
@@ -203,17 +227,17 @@ namespace ClusterService
             {
                 return Math.Min(
                     this.Config.MaximumClusterCount,
-                    activeClusters + (int)Math.Ceiling(activeClusters * (1 - this.Config.UserCapacityHighPercentThreshold)));
+                    activeClusterCount + (int)Math.Ceiling(activeClusterCount * (1 - this.Config.UserCapacityHighPercentThreshold)));
             }
 
             if (percentFull <= this.Config.UserCapacityLowPercentThreshold)
             {
                 return Math.Max(
                     this.Config.MinimumClusterCount,
-                    activeClusters - (int)Math.Floor(activeClusters * (this.Config.UserCapacityHighPercentThreshold - this.Config.UserCapacityLowPercentThreshold)));
+                    activeClusterCount - (int)Math.Floor(activeClusterCount * (this.Config.UserCapacityHighPercentThreshold - this.Config.UserCapacityLowPercentThreshold)));
             }
 
-            return activeClusters;
+            return activeClusterCount;
         }
 
         /// <summary>
@@ -275,17 +299,14 @@ namespace ClusterService
                     {
                         case ClusterOperationStatus.Creating:
                         case ClusterOperationStatus.Ready:
+                        case ClusterOperationStatus.CreateFailed:
+                        case ClusterOperationStatus.DeleteFailed:
                             await this.clusterOperator.DeleteClusterAsync(cluster.Address);
                             cluster.Status = ClusterStatus.Deleting;
                             break;
                         case ClusterOperationStatus.Deleting:
                             cluster.Status = ClusterStatus.Deleting;
                             break;
-                        case ClusterOperationStatus.CreateFailed:
-                        case ClusterOperationStatus.DeleteFailed:
-                            // this means the cluster was marked for removal but it is a failed state. Do something!
-                            break;
-
                     }
                     break;
 
@@ -302,20 +323,16 @@ namespace ClusterService
                         case ClusterOperationStatus.ClusterNotFound:
                             cluster.Status = ClusterStatus.Deleted;
                             break;
+                        case ClusterOperationStatus.CreateFailed:
                         case ClusterOperationStatus.DeleteFailed:
-                            //TODO: set status back to Remove so it can be retried?
+                            cluster.Status = ClusterStatus.Remove;
                             break;
                     }
                     break;
 
             }
         }
-
-        private string ClusterName(int number)
-        {
-            return String.Format("Party Cluster {0}", number);
-        }
-
+        
         /// <summary>
         /// Poor-man's dependency injection for now until the API supports proper injection of IReliableStateManager.
         /// </summary>
@@ -338,12 +355,23 @@ namespace ClusterService
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                await ProcessClusters();
+
                 int target = await this.GetTargetClusterCapacityAsync();
-                //await clusterManagementPipeline.UpdateClusterListAsync(target);
-                await this.ProcessClusterStatusAsync(null);
+
+                await this.BalanceClustersAsync(target);
 
                 await Task.Delay(this.Config.RefreshInterval, cancellationToken);
             }
         }
+
+        private IEnumerable<KeyValuePair<int, Cluster>> GetActiveClusters(IReliableDictionary<int, Cluster> clusterDictionary)
+        {
+            return clusterDictionary.Where(x =>
+                x.Value.Status == ClusterStatus.New ||
+                x.Value.Status == ClusterStatus.Creating ||
+                x.Value.Status == ClusterStatus.Ready);
+        }
+
     }
 }

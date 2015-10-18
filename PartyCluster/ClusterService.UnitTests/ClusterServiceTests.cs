@@ -61,7 +61,7 @@ namespace ClusterService.UnitTests
         /// </summary>
         /// <returns></returns>
         [TestMethod]
-        public async Task TestIncreaseClusters()
+        public async Task TestBalanceClusters()
         {
             ClusterConfig config = new ClusterConfig();
             MockReliableStateManager stateManager = new MockReliableStateManager();
@@ -70,7 +70,7 @@ namespace ClusterService.UnitTests
                 Config = config
             };
 
-            await target.IncreaseClustersBy(config.MinimumClusterCount);
+            await target.BalanceClustersAsync(config.MinimumClusterCount);
 
             var result = await stateManager.TryGetAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
 
@@ -79,12 +79,110 @@ namespace ClusterService.UnitTests
             Assert.IsTrue(result.Value.All(x => x.Value.Status == ClusterStatus.New));
         }
 
-        /// <summary>.
-        /// Only add clusters up to the limit.
+        /// <summary>
+        /// The total amount of active clusters should never go below the min threshold.
+        /// When the current active cluster count is below min, and the new target is greater than current but still below min, bump the amount up to min.
         /// </summary>
         /// <returns></returns>
         [TestMethod]
-        public async Task TestIncreaseClustersMax()
+        public async Task TestBalanceClustersIncreaseBelowMin()
+        {
+            ClusterConfig config = new ClusterConfig();
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            ClusterService target = new ClusterService(null, stateManager)
+            {
+                Config = config
+            };
+
+            var dictionary = await stateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
+
+            int readyCount = (int)Math.Floor(config.MinimumClusterCount / 5D);
+            int newCount = readyCount;
+            int creatingCount = readyCount;
+
+            using (ITransaction tx = stateManager.CreateTransaction())
+            {
+                await AddClusters(tx, dictionary, readyCount, ClusterStatus.Ready);
+                await AddClusters(tx, dictionary, newCount, ClusterStatus.New);
+                await AddClusters(tx, dictionary, creatingCount, ClusterStatus.Creating);
+                await AddClusters(tx, dictionary, config.MinimumClusterCount, ClusterStatus.Deleting);
+                await tx.CommitAsync();
+            }
+
+            await target.BalanceClustersAsync(readyCount * 4);
+
+            Assert.AreEqual(config.MinimumClusterCount, dictionary.Count(x =>
+                x.Value.Status == ClusterStatus.Ready ||
+                x.Value.Status == ClusterStatus.New ||
+                x.Value.Status == ClusterStatus.Creating));
+        }
+
+        /// <summary>
+        /// The total amount of active clusters should never go below the min threshold.
+        /// When the request amount is below the minimum threshold, and the new target is less than current, bump the amount up to min.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestBalanceClustersDecreaseBelowMin()
+        {
+            ClusterConfig config = new ClusterConfig();
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            ClusterService target = new ClusterService(null, stateManager)
+            {
+                Config = config
+            };
+
+            var dictionary = await stateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
+
+            int readyCount = config.MinimumClusterCount - 1;
+            using (ITransaction tx = stateManager.CreateTransaction())
+            {
+                await AddClusters(tx, dictionary, readyCount, ClusterStatus.Ready);
+                await tx.CommitAsync();
+            }
+
+            await target.BalanceClustersAsync(config.MinimumClusterCount - 2);
+
+            Assert.AreEqual(readyCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Ready));
+            Assert.AreEqual(config.MinimumClusterCount - readyCount, dictionary.Count(x => x.Value.Status == ClusterStatus.New));
+        }
+
+        /// <summary>
+        /// The total amount of active clusters should never go below the min threshold.
+        /// When the request amount is above the minimum threshold, and the new target is less than min, only remove down to min.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestBalanceClustersMinThreshold()
+        {
+            ClusterConfig config = new ClusterConfig();
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            ClusterService target = new ClusterService(null, stateManager)
+            {
+                Config = config
+            };
+
+            var dictionary = await stateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
+
+            using (ITransaction tx = stateManager.CreateTransaction())
+            {
+                await AddClusters(tx, dictionary, config.MinimumClusterCount, ClusterStatus.Ready);
+                await tx.CommitAsync();
+            }
+
+            await target.BalanceClustersAsync(config.MinimumClusterCount - 1);
+
+            Assert.AreEqual(config.MinimumClusterCount, await dictionary.GetCountAsync());
+            Assert.IsTrue(dictionary.All(x => x.Value.Status == ClusterStatus.Ready));
+        }
+
+        /// <summary>.
+        /// The total amount of active clusters should never go above the max threshold.
+        /// Only add clusters up to the limit considering only active clusters.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestBalanceClustersMaxThreshold()
         {
             ClusterConfig config = new ClusterConfig();
             MockReliableStateManager stateManager = new MockReliableStateManager();
@@ -104,19 +202,20 @@ namespace ClusterService.UnitTests
                 await tx.CommitAsync();
             }
 
-            await target.IncreaseClustersBy(config.MaximumClusterCount + 1);
+            await target.BalanceClustersAsync(config.MaximumClusterCount + 1);
 
             Assert.AreEqual(config.MaximumClusterCount + deletingClusterCount, await dictionary.GetCountAsync());
             Assert.AreEqual(config.MaximumClusterCount - readyClusters, dictionary.Count(x => x.Value.Status == ClusterStatus.New));
             Assert.AreEqual(readyClusters, dictionary.Count(x => x.Value.Status == ClusterStatus.Ready));
         }
 
-        /// <summary>
-        /// Only decrease down to the minimum.
+        /// <summary>.
+        /// The total amount of active clusters should never go above the max threshold.
+        /// When the total active clusters is above max, and the new total is greater than current, remove clusters down to the minimum.
         /// </summary>
         /// <returns></returns>
         [TestMethod]
-        public async Task TestDecreaseClustersMin()
+        public async Task TestBalanceClustersIncreaseAboveMax()
         {
             ClusterConfig config = new ClusterConfig();
             MockReliableStateManager stateManager = new MockReliableStateManager();
@@ -125,26 +224,65 @@ namespace ClusterService.UnitTests
                 Config = config
             };
 
+            int aboveMax = 10;
+            int readyClusters = config.MaximumClusterCount + aboveMax;
+            int deletingClusterCount = 20;
             var dictionary = await stateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
 
             using (ITransaction tx = stateManager.CreateTransaction())
             {
-                await AddClusters(tx, dictionary, config.MinimumClusterCount, ClusterStatus.Ready);
+                await AddClusters(tx, dictionary, readyClusters, ClusterStatus.Ready);
+                await AddClusters(tx, dictionary, deletingClusterCount, ClusterStatus.Deleting);
                 await tx.CommitAsync();
             }
 
-            await target.DecreaseClustersBy(1);
+            await target.BalanceClustersAsync(readyClusters + 10);
 
-            Assert.AreEqual(config.MinimumClusterCount, await dictionary.GetCountAsync());
-            Assert.IsTrue(dictionary.All(x => x.Value.Status == ClusterStatus.Ready));
+            Assert.AreEqual(config.MaximumClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Ready));
+            Assert.AreEqual(aboveMax, dictionary.Count(x => x.Value.Status == ClusterStatus.Remove));
+            Assert.AreEqual(deletingClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Deleting));
         }
 
-        /// <summary>
-        /// UpdateClusterListAsync should not flag to remove clusters that are already being deleted.
+        /// <summary>.
+        /// The total amount of active clusters should never go above the max threshold.
+        /// When the total active clusters is above max, and the new total is greater than current, remove clusters down to the minimum.
         /// </summary>
         /// <returns></returns>
         [TestMethod]
-        public async Task TestDecreaseClusterAlreadyDeleting()
+        public async Task TestBalanceClustersDecreaseAboveMax()
+        {
+            ClusterConfig config = new ClusterConfig();
+            MockReliableStateManager stateManager = new MockReliableStateManager();
+            ClusterService target = new ClusterService(null, stateManager)
+            {
+                Config = config
+            };
+
+            int aboveMax = 10;
+            int readyClusters = config.MaximumClusterCount + aboveMax;
+            int deletingClusterCount = 20;
+            var dictionary = await stateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
+
+            using (ITransaction tx = stateManager.CreateTransaction())
+            {
+                await AddClusters(tx, dictionary, readyClusters, ClusterStatus.Ready);
+                await AddClusters(tx, dictionary, deletingClusterCount, ClusterStatus.Deleting);
+                await tx.CommitAsync();
+            }
+
+            await target.BalanceClustersAsync(readyClusters - (aboveMax / 2));
+
+            Assert.AreEqual(config.MaximumClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Ready));
+            Assert.AreEqual(aboveMax, dictionary.Count(x => x.Value.Status == ClusterStatus.Remove));
+            Assert.AreEqual(deletingClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Deleting));
+        }
+
+        /// <summary>
+        /// Tests that only active clusters are considered for removal without going below the minimum threshold.
+        /// </summary>
+        /// <returns></returns>
+        [TestMethod]
+        public async Task TestBalanceClusterDecreaseAlreadyDeleting()
         {
             ClusterConfig config = new ClusterConfig();
             MockReliableStateManager stateManager = new MockReliableStateManager();
@@ -155,32 +293,32 @@ namespace ClusterService.UnitTests
 
             var dictionary = await stateManager.GetOrAddAsync<IReliableDictionary<int, Cluster>>(ClusterService.ClusterDictionaryName);
 
-            int readyCount = 5;
+            int readyCount = 5 + config.MinimumClusterCount;
             int deletingCount = 10;
-            int decreaseBy = 10;
+            int targetCount = config.MinimumClusterCount / 2;
 
             using (ITransaction tx = stateManager.CreateTransaction())
             {
-                await AddClusters(tx, dictionary, readyCount + config.MinimumClusterCount, ClusterStatus.Ready);
+                await AddClusters(tx, dictionary, readyCount, ClusterStatus.Ready);
                 await AddClusters(tx, dictionary, deletingCount, ClusterStatus.Deleting);
 
                 await tx.CommitAsync();
             }
 
-            await target.DecreaseClustersBy(decreaseBy);
+            await target.BalanceClustersAsync(targetCount);
 
-            Assert.AreEqual(readyCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Remove));
+            Assert.AreEqual(readyCount - config.MinimumClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Remove));
             Assert.AreEqual(config.MinimumClusterCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Ready));
             Assert.AreEqual(deletingCount, dictionary.Count(x => x.Value.Status == ClusterStatus.Deleting));
         }
-        
+
         /// <summary>
-        /// UpdateClusterListAsync should not flag to remove clusters that still have users in them 
+        /// BalanceClustersAsync should not flag to remove clusters that still have users in them 
         /// when given a target count below the current count.
         /// </summary>
         /// <returns></returns>
         [TestMethod]
-        public async Task TestDecreaseClustersNonEmpty()
+        public async Task TestBalanceClustersDecreaseNonEmpty()
         {
             ClusterConfig config = new ClusterConfig();
             MockReliableStateManager stateManager = new MockReliableStateManager();
@@ -193,7 +331,7 @@ namespace ClusterService.UnitTests
 
             int withUsers = config.MinimumClusterCount + 5;
             int withoutUsers = 10;
-            int reduceBy = 11;
+            int targetCount = (withUsers + withoutUsers) - 11;
 
             using (ITransaction tx = stateManager.CreateTransaction())
             {
@@ -208,7 +346,7 @@ namespace ClusterService.UnitTests
                 await tx.CommitAsync();
             }
 
-            await target.DecreaseClustersBy(reduceBy);
+            await target.BalanceClustersAsync(targetCount);
 
             Assert.AreEqual(withUsers, dictionary.Select(x => x.Value).Count(x => x.Status == ClusterStatus.Ready));
             Assert.AreEqual(withoutUsers, dictionary.Select(x => x.Value).Count(x => x.Status == ClusterStatus.Remove));
@@ -237,6 +375,12 @@ namespace ClusterService.UnitTests
                 await AddClusters(tx, dictionary, clusterCount, () => new Cluster()
                 {
                     Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), (int)Math.Ceiling((double)config.MaximumUsersPerCluster * config.UserCapacityHighPercentThreshold)))
+                });
+
+                await AddClusters(tx, dictionary, 5, () => new Cluster()
+                {
+                    Status = ClusterStatus.Remove,
+                    Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), config.MaximumUsersPerCluster))
                 });
 
                 await AddClusters(tx, dictionary, 5, ClusterStatus.Deleting);
@@ -274,7 +418,13 @@ namespace ClusterService.UnitTests
                 {
                     Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), (int)Math.Ceiling((double)config.MaximumUsersPerCluster * config.UserCapacityHighPercentThreshold)))
                 });
-                
+
+                await AddClusters(tx, dictionary, 5, () => new Cluster()
+                {
+                    Status = ClusterStatus.Remove,
+                    Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), config.MaximumUsersPerCluster))
+                });
+
                 await tx.CommitAsync();
             }
             
@@ -308,7 +458,11 @@ namespace ClusterService.UnitTests
                     Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), (int)Math.Floor((double)config.MaximumUsersPerCluster * config.UserCapacityLowPercentThreshold)))
                 });
 
-                await AddClusters(tx, dictionary, 5, ClusterStatus.Deleting);
+                await AddClusters(tx, dictionary, 5, () => new Cluster()
+                {
+                    Status = ClusterStatus.Remove,
+                    Users = new List<ClusterUser>(Enumerable.Repeat(new ClusterUser(), config.MaximumUsersPerCluster))
+                });
 
                 await tx.CommitAsync();
             }
